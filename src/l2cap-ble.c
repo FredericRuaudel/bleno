@@ -3,6 +3,7 @@
 #include <sys/prctl.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <stdarg.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/l2cap.h>
@@ -13,6 +14,20 @@ int lastSignal = 0;
 
 static void signalHandler(int signal) {
   lastSignal = signal;
+}
+
+void debug (const char* format,...)
+{
+    FILE* fd = fopen("/tmp/debugBTLE.log", "a+");
+    if (fd != NULL)
+    {
+				fprintf(fd, "L2CAP - ");
+        va_list args;
+        va_start (args, format);
+        vfprintf(fd,format,args);
+        va_end (args);
+        fclose (fd);
+    }
 }
 
 int main(int argc, const char* argv[]) {
@@ -56,10 +71,12 @@ int main(int argc, const char* argv[]) {
 
   result = bind(serverL2capSock, (struct sockaddr*)&sockAddr, sizeof(sockAddr));
 
+	debug ("bind %s\n", (result == -1) ? strerror(errno) : "success");
   printf("bind %s\n", (result == -1) ? strerror(errno) : "success");
 
   result = listen(serverL2capSock, 1);
 
+  debug("listen %s\n", (result == -1) ? strerror(errno) : "success");
   printf("listen %s\n", (result == -1) ? strerror(errno) : "success");
 
   while (result != -1) {
@@ -73,11 +90,13 @@ int main(int argc, const char* argv[]) {
 
     if (-1 == result) {
       if (SIGINT == lastSignal || SIGKILL == lastSignal) {
+				debug("done\n");
         break;
       }
     } else if (result && FD_ISSET(serverL2capSock, &afds)) {
       sockAddrLen = sizeof(sockAddr);
       clientL2capSock = accept(serverL2capSock, (struct sockaddr *)&sockAddr, &sockAddrLen);
+			
 
 			// set non blocking socket      
 			sock_flags = fcntl(clientL2capSock,F_GETFL, 0);
@@ -85,6 +104,7 @@ int main(int argc, const char* argv[]) {
 
       baswap(&clientBdAddr, &sockAddr.l2_bdaddr);
       printf("accept %s\n", batostr(&clientBdAddr));
+      debug("accept from %s\n", batostr(&clientBdAddr));
 
       while(1) {
         FD_ZERO(&rfds);
@@ -106,6 +126,7 @@ int main(int argc, const char* argv[]) {
         } else if (result) {
           if (FD_ISSET(0, &rfds)) {
             len = read(0, stdinBuf, sizeof(stdinBuf));
+						debug ("Read from stdin <%s>\n", stdinBuf);
 
             if (len <= 0) {
               break;
@@ -129,8 +150,10 @@ int main(int argc, const char* argv[]) {
             }
 
             printf("data ");
+						debug ("Read from client: \n");
             for(i = 0; i < len; i++) {
               printf("%02x", ((int)l2capSockBuf[i]) & 0xff);
+              debug("%02x\n", ((int)l2capSockBuf[i]) & 0xff);
             }
             printf("\n");
           }
@@ -138,11 +161,14 @@ int main(int argc, const char* argv[]) {
       }
 
       printf("disconnect %s\n", batostr(&clientBdAddr));
+      debug("disconnect %s\n", batostr(&clientBdAddr));
+			
       close(clientL2capSock);
     }
   }
 
   printf("close\n");
+  debug("close\n");
   close(serverL2capSock);
 
   return 0;

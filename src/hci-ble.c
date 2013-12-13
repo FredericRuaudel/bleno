@@ -6,6 +6,7 @@
 #include <sys/prctl.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <stdarg.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -15,6 +16,20 @@ int lastSignal = 0;
 
 static void signalHandler(int signal) {
   lastSignal = signal;
+}
+
+void debug (const char* format,...)
+{
+		FILE* fd = fopen("/tmp/debugBTLE.log", "a+");
+		if (fd != NULL)
+		{
+        fprintf(fd, "HCI - ");
+        va_list args;
+        va_start (args, format);
+        vfprintf(fd,format,args);
+        va_end (args);
+        fclose (fd);
+		}
 }
 
 int hci_le_set_advertising_data(int dd, uint8_t* data, uint8_t length, int to)
@@ -119,6 +134,7 @@ int main(int argc, const char* argv[])
 		hciDeviceId = hci_get_route(NULL);
   }
 
+	debug ("hci device ID : %d\n", hciDeviceId);
   // setup HCI socket
   hciSocket = hci_open_dev(hciDeviceId);
   hciDevInfo.dev_id = hciDeviceId;
@@ -173,11 +189,14 @@ int main(int argc, const char* argv[])
     if (-1 == selectRetval) {
       if (SIGINT == lastSignal || SIGKILL == lastSignal) {
         // done
+				debug("Finish !\n");
         break;
       } else if (SIGHUP == lastSignal) {
         // stop advertising
+				debug ("stop advertising\n");
         hci_le_set_advertise_enable(hciSocket, 0, 1000);
       } else if (SIGUSR1 == lastSignal) {
+				debug ("restart advertising\n");
         // restart advertising
         hci_le_set_advertise_enable(hciSocket, 1, 1000);
 
@@ -188,6 +207,7 @@ int main(int argc, const char* argv[])
     } else if (selectRetval) {
       if (FD_ISSET(0, &rfds)) {
         len = read(0, stdinBuf, sizeof(stdinBuf));
+				debug ("Read from stdin <%s>\n", stdinBuf);
 
         if (len <= 0) {
           break;
@@ -213,6 +233,7 @@ int main(int argc, const char* argv[])
 
         // stop advertising
         hci_le_set_advertise_enable(hciSocket, 0, 1000);
+				debug ("2-stop advertising\n");
 
         // set advertisement and scan data
         hci_le_set_advertising_data(hciSocket, (uint8_t*)&advertisementDataBuf, advertisementDataLen, 1000);
@@ -220,6 +241,7 @@ int main(int argc, const char* argv[])
 
         // start advertising
         hci_le_set_advertise_enable(hciSocket, 1, 1000);
+				debug ("2-restart advertising with new data\n");
 
         // set advertisement data
         hci_le_set_advertising_data(hciSocket, (uint8_t*)&advertisementDataBuf, advertisementDataLen, 1000);
@@ -230,6 +252,7 @@ int main(int argc, const char* argv[])
 
   // stop advertising
   hci_le_set_advertise_enable(hciSocket, 0, 1000);
+	debug ("3-stop advertising and quit\n");
 
   close(hciSocket);
 
