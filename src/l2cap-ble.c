@@ -2,6 +2,7 @@
 #include <signal.h>
 #include <sys/prctl.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/l2cap.h>
@@ -22,6 +23,7 @@ int main(int argc, const char* argv[]) {
   int result;
   bdaddr_t clientBdAddr;
   int clientL2capSock;
+	int sock_flags;
 
   fd_set afds;
   fd_set rfds;
@@ -41,6 +43,10 @@ int main(int argc, const char* argv[]) {
 
   // create socket
   serverL2capSock = socket(AF_BLUETOOTH, SOCK_SEQPACKET, BTPROTO_L2CAP);
+
+	// set non blocking socket
+	sock_flags = fcntl(serverL2capSock,F_GETFL, 0);
+	fcntl (serverL2capSock, F_SETFL, sock_flags | O_NONBLOCK);
 
   // bind
   memset(&sockAddr, 0, sizeof(sockAddr));
@@ -72,6 +78,10 @@ int main(int argc, const char* argv[]) {
     } else if (result && FD_ISSET(serverL2capSock, &afds)) {
       sockAddrLen = sizeof(sockAddr);
       clientL2capSock = accept(serverL2capSock, (struct sockaddr *)&sockAddr, &sockAddrLen);
+
+			// set non blocking socket      
+			sock_flags = fcntl(clientL2capSock,F_GETFL, 0);
+			fcntl (clientL2capSock, F_SETFL, sock_flags | O_NONBLOCK);
 
       baswap(&clientBdAddr, &sockAddr.l2_bdaddr);
       printf("accept %s\n", batostr(&clientBdAddr));

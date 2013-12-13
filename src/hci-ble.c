@@ -5,6 +5,7 @@
 #include <sys/ioctl.h>
 #include <sys/prctl.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
@@ -96,6 +97,7 @@ int main(int argc, const char* argv[])
   int scanDataLen = 0;
   int len;
   int i;
+	int sock_flags;
 
   memset(&hciDevInfo, 0x00, sizeof(hciDevInfo));
 
@@ -125,6 +127,10 @@ int main(int argc, const char* argv[])
     printf("adapterState unsupported\n");
     return -1;
   }
+
+	// set non blocking socket      
+	sock_flags = fcntl(hciSocket,F_GETFL, 0);
+	fcntl (hciSocket, F_SETFL, sock_flags | O_NONBLOCK);
 
   while(1) {
     FD_ZERO(&rfds);
