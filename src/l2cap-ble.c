@@ -86,6 +86,7 @@ int main(int argc, const char* argv[]) {
     tv.tv_sec = 1;
     tv.tv_usec = 0;
 
+		debug("waiting connection from client...\n");
     result = select(serverL2capSock + 1, &afds, NULL, NULL, &tv);
 
     if (-1 == result) {
@@ -113,17 +114,18 @@ int main(int argc, const char* argv[]) {
 
         tv.tv_sec = 1;
         tv.tv_usec = 0;
+				
+				debug("waiting data for/from client %s...\n", batostr(&clientBdAddr));
+        int result2 = select(clientL2capSock + 1, &rfds, NULL, NULL, &tv);
 
-        result = select(clientL2capSock + 1, &rfds, NULL, NULL, &tv);
-
-        if (-1 == result) {
+        if (-1 == result2) {
           if (SIGINT == lastSignal || SIGKILL == lastSignal || SIGHUP == lastSignal) {
             if (SIGHUP == lastSignal) {
-              result = 0;
+              result2 = 0;
             }
             break;
           }
-        } else if (result) {
+        } else if (result2) {
           if (FD_ISSET(0, &rfds)) {
             len = read(0, stdinBuf, sizeof(stdinBuf));
 						debug ("Read from stdin <%s>\n", stdinBuf);
